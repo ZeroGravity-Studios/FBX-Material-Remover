@@ -19,13 +19,13 @@
 # <pep8 compliant>
 
 bl_info = {
-    "name": "FBX format",
+    "name": "FBX format(Skip_Meshes)",
     "author": "Campbell Barton, Bastien Montagne, Jens Restemeier",
     "version": (4, 21, 3),
     "blender": (2, 90, 0),
     "location": "File > Import-Export",
     "description": "FBX IO meshes, UV's, vertex colors, materials, textures, cameras, lamps and actions",
-    "warning": "",
+    "warning": " Disable default FBX exporter before using this",
     "doc_url": "{BLENDER_MANUAL_URL}/addons/import_export/scene_fbx.html",
     "support": 'OFFICIAL',
     "category": "Import-Export",
@@ -399,6 +399,11 @@ class ExportFBX(bpy.types.Operator, ExportHelper):
             description="Export only objects from the active collection (and its children)",
             default=False,
             )
+    skip_material: BoolProperty(
+            name="Export Materials",
+            description="Save mesh with or without Material information",
+            default=True,
+            )
     global_scale: FloatProperty(
             name="Scale",
             description="Scale all data (Some importers do not support scaled armatures!)",
@@ -447,12 +452,6 @@ class ExportFBX(bpy.types.Operator, ExportHelper):
             description="Which kind of object to export",
             default={'EMPTY', 'CAMERA', 'LIGHT', 'ARMATURE', 'MESH', 'OTHER'},
             )
-
-    materials_toggle: BoolProperty(
-            name="Remove Materials",
-            description="Remove all materials from all meshs.",
-            default=False,    
-        )
 
     use_mesh_modifiers: BoolProperty(
             name="Apply Modifiers",
@@ -700,9 +699,10 @@ class FBX_PT_export_include(bpy.types.Panel):
         sublayout.enabled = (operator.batch_mode == 'OFF')
         sublayout.prop(operator, "use_selection")
         sublayout.prop(operator, "use_active_collection")
+        sublayout.prop(operator, "skip_material")
+        
 
         layout.column().prop(operator, "object_types")
-        layout.column().prop(operator, "materials_toggle")
         layout.prop(operator, "use_custom_props")
 
 
