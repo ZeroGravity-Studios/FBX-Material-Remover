@@ -1309,7 +1309,7 @@ def fbx_data_material_elements(root, ma, scene_data):
     elem_props_template_set(tmpl, props, "p_number", b"DiffuseFactor", 1.0)
     # Principled BSDF only has an emissive color, so we assume factor to be always 1.0.
     elem_props_template_set(tmpl, props, "p_color", b"EmissiveColor", ma_wrap.emission_color)
-    elem_props_template_set(tmpl, props, "p_number", b"EmissiveFactor", ma_wrap.emission_strength)
+    elem_props_template_set(tmpl, props, "p_number", b"EmissiveFactor", 1.0)
     # Not in Principled BSDF, so assuming always 0
     elem_props_template_set(tmpl, props, "p_color", b"AmbientColor", ambient_color)
     elem_props_template_set(tmpl, props, "p_number", b"AmbientFactor", 0.0)
@@ -1808,7 +1808,7 @@ PRINCIPLED_TEXTURE_SOCKETS_TO_FBX = (
     ("base_color_texture", b"DiffuseColor"),
     ("alpha_texture", b"TransparencyFactor"),  # Will be inverted in fact, not much we can do really...
     # ("base_color_texture", b"TransparentColor"),  # Uses diffuse color in Blender!
-    ("emission_strength_texture", b"EmissiveFactor"),
+    # ("emit", "emit", b"EmissiveFactor"),
     ("emission_color_texture", b"EmissiveColor"),
     # ("ambient", "ambient", b"AmbientFactor"),
     # ("", "", b"AmbientColor"),  # World stuff in Blender, for now ignore...
@@ -2844,6 +2844,7 @@ def fbx_documents_elements(root, scene_data):
     elem_data_single_int64(doc, b"RootNode", 0)
 
 
+
 def fbx_references_elements(root, scene_data):
     """
     Have no idea what references are in FBX currently... Just writing empty element.
@@ -2863,7 +2864,7 @@ def fbx_definitions_elements(root, scene_data):
     fbx_templates_generate(definitions, scene_data.templates)
 
 
-def fbx_objects_elements(root, scene_data):
+def fbx_objects_elements(root, scene_data,skip_material):
     """
     Data (objects, geometry, material, textures, armatures, etc.).
     """
@@ -2916,7 +2917,8 @@ def fbx_objects_elements(root, scene_data):
         fbx_data_leaf_bone_elements(objects, scene_data)
 
     for ma in scene_data.data_materials:
-        fbx_data_material_elements(objects, ma, scene_data)
+        if skip_material == False:
+            fbx_data_material_elements(objects, ma, scene_data)
 
     for blender_tex_key in scene_data.data_textures:
         fbx_data_texture_file_elements(objects, blender_tex_key, scene_data)
@@ -2964,6 +2966,10 @@ def fbx_takes_elements(root, scene_data):
         take_ref_time = elem_data_single_int64(take, b"ReferenceTime", start_ktime)
         take_ref_time.add_int64(end_ktime)
 
+def remove_mat():
+    for material in bpy.data.materials:
+        material.user_clear()
+        bpy.data.materials.remove(material)
 
 # ##### "Main" functions. #####
 
@@ -2978,6 +2984,7 @@ def save_single(operator, scene, depsgraph, filepath="",
                 context_objects=None,
                 object_types=None,
                 use_mesh_modifiers=True,
+                skip_material=False,
                 use_mesh_modifiers_render=True,
                 mesh_smooth_type='FACE',
                 use_subsurf=False,
@@ -2998,7 +3005,6 @@ def save_single(operator, scene, depsgraph, filepath="",
                 use_tspace=True,
                 embed_textures=False,
                 use_custom_props=False,
-                materials_toggle=False,
                 bake_space_transform=False,
                 armature_nodetype='NULL',
                 **kwargs
@@ -3010,8 +3016,14 @@ def save_single(operator, scene, depsgraph, filepath="",
     if object_types is None:
         object_types = {'EMPTY', 'CAMERA', 'LIGHT', 'ARMATURE', 'MESH', 'OTHER'}
 
+
     if 'OTHER' in object_types:
         object_types |= BLENDER_OTHER_OBJECT_TYPES
+        
+    #if use_remove_materials:
+    #    for material in bpy.data.materials:
+    #        material.user_clear()
+    #        bpy.data.materials.remove(material)
 
     # Default Blender unit is equivalent to meter, while FBX one is centimeter...
     unit_scale = units_blender_to_fbx_factor(scene) if apply_unit_scale else 100.0
@@ -3058,7 +3070,7 @@ def save_single(operator, scene, depsgraph, filepath="",
         set(),  # copy_set
         set(),  # embedded_set
     )
-    
+
     settings = FBXExportSettings(
         operator.report, (axis_up, axis_forward), global_matrix, global_scale, apply_unit_scale, unit_scale,
         bake_space_transform, global_matrix_inv, global_matrix_inv_transposed,
@@ -3092,7 +3104,7 @@ def save_single(operator, scene, depsgraph, filepath="",
     fbx_definitions_elements(root, scene_data)
 
     # Actual data.
-    fbx_objects_elements(root, scene_data)
+    fbx_objects_elements(root, scene_data,skip_material)
 
     # How data are inter-connected.
     fbx_connections_elements(root, scene_data)
@@ -3114,7 +3126,6 @@ def save_single(operator, scene, depsgraph, filepath="",
         bpy_extras.io_utils.path_reference_copy(media_settings.copy_set)
 
     print('export finished in %.4f sec.' % (time.process_time() - start_time))
-
     return {'FINISHED'}
 
 
@@ -3163,7 +3174,6 @@ def save(operator, context,
          use_selection=False,
          use_active_collection=False,
          batch_mode='OFF',
-         materials_toggle=False,
          use_batch_own_dir=False,
          **kwargs
          ):
@@ -3182,17 +3192,6 @@ def save(operator, context,
         bpy.ops.object.mode_set(mode='OBJECT')
 
     if batch_mode == 'OFF':
-
-        #Remove materials from all meshs
-        if materials_toggle:
-            for ob in bpy.data.objects:
-                bpy.context.view_layer.objects.active = ob
-    
-                if ob.type == 'MESH':
-                    for x in bpy.context.object.material_slots: #For all of the materials in the selected object:
-                        bpy.context.object.active_material_index = 0 #select the top material
-                        bpy.ops.object.material_slot_remove() #delete it
-
         kwargs_mod = kwargs.copy()
         if use_active_collection:
             if use_selection:
@@ -3210,20 +3209,11 @@ def save(operator, context,
 
         depsgraph = context.evaluated_depsgraph_get()
         ret = save_single(operator, context.scene, depsgraph, filepath, **kwargs_mod)
-
     else:
         # XXX We need a way to generate a depsgraph for inactive view_layers first...
         # XXX Also, what to do in case of batch-exporting scenes, when there is more than one view layer?
         #     Scenes have no concept of 'active' view layer, that's on window level...
         fbxpath = filepath
-
-        #Remove materials from all meshs
-        if settings.materials_toggle:
-            for ob in bpy.data.objects:
-                bpy.context.scene.objects.active = ob
-    
-                if ob.type == 'MESH':
-                    bpy.ops.view3d.material_remove_object()
 
         prefix = os.path.basename(fbxpath)
         if prefix:
@@ -3237,7 +3227,7 @@ def save(operator, context,
             for scene in scenes:
                 if not scene.objects:
                     continue
-                #Needed to avoid having tens of 'Master Collection' entries.
+                #                                      Needed to avoid having tens of 'Master Collection' entries.
                 todo_collections = [(scene.collection, "_".join((scene.name, scene.collection.name)))]
                 while todo_collections:
                     coll, coll_name = todo_collections.pop()
