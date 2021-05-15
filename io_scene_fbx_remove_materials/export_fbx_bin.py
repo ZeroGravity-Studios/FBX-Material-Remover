@@ -2864,7 +2864,7 @@ def fbx_definitions_elements(root, scene_data):
     fbx_templates_generate(definitions, scene_data.templates)
 
 
-def fbx_objects_elements(root, scene_data,skip_material):
+def fbx_objects_elements(root, scene_data,include_material):
     """
     Data (objects, geometry, material, textures, armatures, etc.).
     """
@@ -2917,7 +2917,7 @@ def fbx_objects_elements(root, scene_data,skip_material):
         fbx_data_leaf_bone_elements(objects, scene_data)
 
     for ma in scene_data.data_materials:
-        if skip_material == False:
+        if include_material == True:
             fbx_data_material_elements(objects, ma, scene_data)
 
     for blender_tex_key in scene_data.data_textures:
@@ -2984,7 +2984,7 @@ def save_single(operator, scene, depsgraph, filepath="",
                 context_objects=None,
                 object_types=None,
                 use_mesh_modifiers=True,
-                skip_material=False,
+                include_material=True,
                 use_mesh_modifiers_render=True,
                 mesh_smooth_type='FACE',
                 use_subsurf=False,
@@ -3104,7 +3104,7 @@ def save_single(operator, scene, depsgraph, filepath="",
     fbx_definitions_elements(root, scene_data)
 
     # Actual data.
-    fbx_objects_elements(root, scene_data,skip_material)
+    fbx_objects_elements(root, scene_data,include_material)
 
     # How data are inter-connected.
     fbx_connections_elements(root, scene_data)

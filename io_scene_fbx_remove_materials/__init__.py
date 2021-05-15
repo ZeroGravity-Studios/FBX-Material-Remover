@@ -19,7 +19,7 @@
 # <pep8 compliant>
 
 bl_info = {
-    "name": "FBX format(Skip_Meshes)",
+    "name": "FBX format(Remove Materials)",
     "author": "Campbell Barton, Bastien Montagne, Jens Restemeier",
     "version": (4, 21, 3),
     "blender": (2, 90, 0),
@@ -399,8 +399,8 @@ class ExportFBX(bpy.types.Operator, ExportHelper):
             description="Export only objects from the active collection (and its children)",
             default=False,
             )
-    skip_material: BoolProperty(
-            name="Export Materials",
+    include_material: BoolProperty(
+            name="Include Materials",
             description="Save mesh with or without Material information",
             default=True,
             )
@@ -699,10 +699,10 @@ class FBX_PT_export_include(bpy.types.Panel):
         sublayout.enabled = (operator.batch_mode == 'OFF')
         sublayout.prop(operator, "use_selection")
         sublayout.prop(operator, "use_active_collection")
-        sublayout.prop(operator, "skip_material")
         
 
         layout.column().prop(operator, "object_types")
+        layout.prop(operator, "include_material")
         layout.prop(operator, "use_custom_props")
 
 
